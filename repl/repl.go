@@ -22,6 +22,7 @@ type Config struct {
 	PokemonToCatchUrl        string
 	PokemonToCatchParam      string
 	Pokemons                 map[string]Pokemon
+	InspectPokemonName       string
 	Cache                    *cache.Cache
 }
 
@@ -62,14 +63,22 @@ type LocationArea struct {
 	PokemonEncounters    []Encounter      `json:"pokemon_encounters"`
 }
 
+type PokemonType struct {
+	Name string `json:"name"`
+}
+type TypeSlot struct {
+	Ptype PokemonType `json:"type"`
+}
+
 type Pokemon struct {
-	Id             int    `json:"id"`
-	Name           string `json:"name"`
-	BaseExperience int    `json:"base_experience"`
-	Height         int    `json:"height"`
-	IsDefault      bool   `json:"is_default"`
-	Order          int    `json:"order"`
-	Weight         int    `json:"weight"`
+	Id             int        `json:"id"`
+	Name           string     `json:"name"`
+	BaseExperience int        `json:"base_experience"`
+	Height         int        `json:"height"`
+	IsDefault      bool       `json:"is_default"`
+	Order          int        `json:"order"`
+	Weight         int        `json:"weight"`
+	Types          []TypeSlot `json:"types"`
 }
 
 func getLocationAreas(cfg *Config) error {
@@ -222,6 +231,8 @@ func getPokemonsInLocationArea(cfg *Config) error {
 		fmt.Println(p.Poke.Name)
 	}
 
+	cfg.PokemonAreaLocationParam = ""
+
 	return nil
 }
 
@@ -233,7 +244,7 @@ func catchPokemon(cfg *Config) error {
 	}
 
 	if _, ok := cfg.Pokemons[cfg.PokemonToCatchParam]; ok {
-		return fmt.Errorf("you already have this pokemon!")
+		return fmt.Errorf("you already have this pokemon")
 	}
 
 	url := cfg.PokemonToCatchUrl + cfg.PokemonToCatchParam + "/"
@@ -251,10 +262,6 @@ func catchPokemon(cfg *Config) error {
 			return err
 		}
 
-		if res.StatusCode == http.StatusNotFound {
-			return fmt.Errorf("unknown pokemon")
-		}
-
 		defer func() {
 			err = res.Body.Close()
 
@@ -262,6 +269,10 @@ func catchPokemon(cfg *Config) error {
 				fmt.Println(err)
 			}
 		}()
+
+		if res.StatusCode == http.StatusNotFound {
+			return fmt.Errorf("unknown pokemon")
+		}
 
 		resBody, err := io.ReadAll(res.Body)
 
@@ -310,6 +321,46 @@ func catchPokemon(cfg *Config) error {
 		cfg.Pokemons[cfg.PokemonToCatchParam] = decodedBody
 	}
 
+	cfg.PokemonToCatchParam = ""
+
+	return nil
+}
+
+func inspectPokemon(cfg *Config) error {
+	if cfg.InspectPokemonName == "" {
+		return fmt.Errorf("no pokemon provided")
+	}
+
+	if inspected, ok := cfg.Pokemons[cfg.InspectPokemonName]; ok {
+		fmt.Println("Name: ", inspected.Name)
+		fmt.Println("Height: ", inspected.Height)
+		fmt.Println("Weight: ", inspected.Weight)
+
+		fmt.Println("Types: ")
+
+		for _, t := range inspected.Types {
+			fmt.Printf("\t-%s\n", t.Ptype.Name)
+		}
+	} else {
+		return fmt.Errorf("you haven't caught this pokemon yet")
+	}
+
+	cfg.InspectPokemonName = ""
+
+	return nil
+}
+
+func inspectPokedex(cfg *Config) error {
+	if len(cfg.Pokemons) == 0 {
+		return fmt.Errorf("your pokedex is empty")
+	}
+
+	fmt.Println("Your Pokedex: ")
+
+	for _, p := range cfg.Pokemons {
+		fmt.Printf("\t-%s\n", p.Name)
+	}
+
 	return nil
 }
 
@@ -345,7 +396,7 @@ func GetCommands() map[string]CliCommand {
 
 	commands["exit"] = CliCommand{
 		Name:        "exit",
-		Description: "Exit the Pokedex",
+		Description: "Exits the Pokedex",
 		Callback:    commandExit,
 	}
 
@@ -377,6 +428,18 @@ func GetCommands() map[string]CliCommand {
 		Name:        "catch",
 		Description: "Catches a pokemon",
 		Callback:    catchPokemon,
+	}
+
+	commands["inspect"] = CliCommand{
+		Name:        "inspect",
+		Description: "Inspects a Pokemon in your Pokedex based on its name",
+		Callback:    inspectPokemon,
+	}
+
+	commands["pokedex"] = CliCommand{
+		Name:        "pokedex",
+		Description: "Prints all the Pokemons in your Pokedex",
+		Callback:    inspectPokedex,
 	}
 	return commands
 }

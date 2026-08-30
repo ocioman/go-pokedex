@@ -34,6 +34,8 @@ func main() {
 				cfg.PokemonAreaLocationParam = args[1]
 			} else if len(args) > 1 && args[0] == "catch" {
 				cfg.PokemonToCatchParam = args[1]
+			} else if len(args) > 1 && args[0] == "inspect" {
+				cfg.InspectPokemonName = args[1]
 			}
 
 			command, ok := cfg.Commands[args[0]]
