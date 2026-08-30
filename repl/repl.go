@@ -3,15 +3,20 @@ package repl
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"pokedexcli/cache"
 	"strings"
 )
 
 type Config struct {
-	Commands             map[string]CliCommand
-	LocationAreasUrlPrev string
-	LocationAreasUrlNext string
+	Commands                 map[string]CliCommand
+	LocationAreasUrlPrev     string
+	LocationAreasUrlNext     string
+	PokemonAreaLocationUrl   string
+	PokemonAreaLocationParam string
+	Cache                    *cache.Cache
 }
 
 type CliCommand struct {
@@ -31,29 +36,63 @@ type Locations struct {
 	Results  []Location `json:"results"`
 }
 
+type Pokemon struct {
+	Name string `json:"name"`
+	Url  string `json:"url"`
+}
+
+type Encounter struct {
+	Poke           Pokemon          `json:"pokemon"`
+	VersionDetails []map[string]any `json:"version_details"`
+}
+
+type LocationArea struct {
+	Id                   int              `json:"id"`
+	Name                 string           `json:"name"`
+	GameIndex            int              `json:"game_index"`
+	EncounterMethodRates []map[string]any `json:"encounter_method_rates"`
+	Locat                Location         `json:"location"`
+	Names                []map[string]any `json:"names"`
+	PokemonEncounters    []Encounter      `json:"pokemon_encounters"`
+}
+
 func getLocationAreas(cfg *Config) error {
-	res, err := http.Get(cfg.LocationAreasUrlNext)
-
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		err = res.Body.Close()
-
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	decoder := json.NewDecoder(res.Body)
-
 	var decodedRes Locations
 
-	err = decoder.Decode(&decodedRes)
+	if cached, ok := cfg.Cache.Get(cfg.LocationAreasUrlNext); ok {
+		err := json.Unmarshal(cached, &decodedRes)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+	} else {
+		res, err := http.Get(cfg.LocationAreasUrlNext)
+
+		if err != nil {
+			return err
+		}
+
+		resBody, err := io.ReadAll(res.Body)
+
+		defer func() {
+			err = res.Body.Close()
+
+			if err != nil {
+				fmt.Println(err)
+			}
+		}()
+
+		if err != nil {
+			return err
+		}
+
+		err = json.Unmarshal(resBody, &decodedRes)
+
+		if err != nil {
+			return err
+		}
+
+		cfg.Cache.Add(cfg.LocationAreasUrlNext, resBody)
 	}
 
 	for _, l := range decodedRes.Results {
@@ -70,28 +109,43 @@ func getPreviousLocationAreas(cfg *Config) error {
 	if len(cfg.LocationAreasUrlPrev) == 0 {
 		return fmt.Errorf("no previous area locations")
 	}
-	res, err := http.Get(cfg.LocationAreasUrlPrev)
-
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		err = res.Body.Close()
-
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	decoder := json.NewDecoder(res.Body)
 
 	var decodedRes Locations
 
-	err = decoder.Decode(&decodedRes)
+	if cached, ok := cfg.Cache.Get(cfg.LocationAreasUrlPrev); ok {
+		err := json.Unmarshal(cached, &decodedRes)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+	} else {
+		res, err := http.Get(cfg.LocationAreasUrlPrev)
+
+		if err != nil {
+			return err
+		}
+
+		resBody, err := io.ReadAll(res.Body)
+
+		defer func() {
+			err = res.Body.Close()
+
+			if err != nil {
+				fmt.Println(err)
+			}
+		}()
+
+		if err != nil {
+			return err
+		}
+
+		err = json.Unmarshal(resBody, &decodedRes)
+
+		if err != nil {
+			return err
+		}
+
+		cfg.Cache.Add(cfg.LocationAreasUrlPrev, resBody)
 	}
 
 	for _, l := range decodedRes.Results {
@@ -100,6 +154,57 @@ func getPreviousLocationAreas(cfg *Config) error {
 
 	cfg.LocationAreasUrlPrev = decodedRes.Previous
 	cfg.LocationAreasUrlNext = decodedRes.Next
+
+	return nil
+}
+
+func getPokemonsInLocationArea(cfg *Config) error {
+	if cfg.PokemonAreaLocationParam == "" {
+		return fmt.Errorf("no area specified")
+	}
+	var decodedData LocationArea
+
+	url := cfg.PokemonAreaLocationUrl + cfg.PokemonAreaLocationParam
+
+	if cached, ok := cfg.Cache.Get(url); ok {
+		err := json.Unmarshal(cached, &decodedData)
+
+		if err != nil {
+			return err
+		}
+	} else {
+		res, err := http.Get(url)
+
+		if err != nil {
+			return err
+		}
+
+		defer func() {
+			err = res.Body.Close()
+
+			if err != nil {
+				fmt.Println(err)
+			}
+		}()
+
+		resBody, err := io.ReadAll(res.Body)
+
+		if err != nil {
+			return err
+		}
+
+		err = json.Unmarshal(resBody, &decodedData)
+
+		cfg.Cache.Add(url, resBody)
+	}
+
+	if len(decodedData.PokemonEncounters) == 0 {
+		return fmt.Errorf("no results in the area %s", cfg.PokemonAreaLocationParam)
+	}
+
+	for _, p := range decodedData.PokemonEncounters {
+		fmt.Println(p.Poke.Name)
+	}
 
 	return nil
 }
@@ -146,6 +251,12 @@ func GetCommands() map[string]CliCommand {
 		Name:        "mapb",
 		Description: "Prints the previous 20 location ares",
 		Callback:    getPreviousLocationAreas,
+	}
+
+	commands["explore"] = CliCommand{
+		Name:        "explore",
+		Description: "Prints all the possible pokemon encounters in the location area",
+		Callback:    getPokemonsInLocationArea,
 	}
 
 	return commands
