@@ -7,38 +7,10 @@ import (
 	"pokedexcli/repl"
 )
 
-var commands map[string]repl.CliCommand
-
-func commandExit() error {
-	fmt.Println("Closing the Pokedex... Goodbye!")
-	os.Exit(0)
-	return nil
-}
-
-func commandHelp() error {
-	fmt.Printf("\nWelcome to the Pokedex!\nUsage:\n\n")
-	for k, v := range commands {
-		fmt.Printf("%s: %s\n", k, v.Description)
-	}
-
-	fmt.Printf("\n")
-
-	return nil
-}
-
 func main() {
-	commands = make(map[string]repl.CliCommand)
-
-	commands["exit"] = repl.CliCommand{
-		Name:        "exit",
-		Description: "Exit the Pokedex",
-		Callback:    commandExit,
-	}
-
-	commands["help"] = repl.CliCommand{
-		Name:        "help",
-		Description: "Displays a help message",
-		Callback:    commandHelp,
+	cfg := repl.Config{
+		Commands:             repl.GetCommands(),
+		LocationAreasUrlNext: "https://pokeapi.co/api/v2/location-area/?limit=20",
 	}
 
 	scann := bufio.NewScanner(os.Stdin)
@@ -52,8 +24,14 @@ func main() {
 		args := repl.CleanInput(input)
 
 		if len(args) > 0 {
-			err := commands[args[0]].Callback()
+			command, ok := cfg.Commands[args[0]]
 
+			if !ok {
+				fmt.Println("unknown command")
+				continue
+			}
+
+			err := command.Callback(&cfg)
 			if err != nil {
 				fmt.Println(err)
 			}
