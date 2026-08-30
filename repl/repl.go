@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"pokedexcli/cache"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -16,6 +19,9 @@ type Config struct {
 	LocationAreasUrlNext     string
 	PokemonAreaLocationUrl   string
 	PokemonAreaLocationParam string
+	PokemonToCatchUrl        string
+	PokemonToCatchParam      string
+	Pokemons                 map[string]Pokemon
 	Cache                    *cache.Cache
 }
 
@@ -36,13 +42,13 @@ type Locations struct {
 	Results  []Location `json:"results"`
 }
 
-type Pokemon struct {
+type PokemonEncounter struct {
 	Name string `json:"name"`
 	Url  string `json:"url"`
 }
 
 type Encounter struct {
-	Poke           Pokemon          `json:"pokemon"`
+	Poke           PokemonEncounter `json:"pokemon"`
 	VersionDetails []map[string]any `json:"version_details"`
 }
 
@@ -54,6 +60,16 @@ type LocationArea struct {
 	Locat                Location         `json:"location"`
 	Names                []map[string]any `json:"names"`
 	PokemonEncounters    []Encounter      `json:"pokemon_encounters"`
+}
+
+type Pokemon struct {
+	Id             int    `json:"id"`
+	Name           string `json:"name"`
+	BaseExperience int    `json:"base_experience"`
+	Height         int    `json:"height"`
+	IsDefault      bool   `json:"is_default"`
+	Order          int    `json:"order"`
+	Weight         int    `json:"weight"`
 }
 
 func getLocationAreas(cfg *Config) error {
@@ -209,6 +225,104 @@ func getPokemonsInLocationArea(cfg *Config) error {
 	return nil
 }
 
+func catchPokemon(cfg *Config) error {
+	var decodedBody Pokemon
+
+	if cfg.PokemonToCatchParam == "" {
+		return fmt.Errorf("no pokemon provided")
+	}
+
+	if _, ok := cfg.Pokemons[cfg.PokemonToCatchParam]; ok {
+		return fmt.Errorf("you already have this pokemon!")
+	}
+
+	url := cfg.PokemonToCatchUrl + cfg.PokemonToCatchParam + "/"
+
+	if cached, ok := cfg.Cache.Get(url); ok {
+		err := json.Unmarshal(cached, &decodedBody)
+
+		if err != nil {
+			return err
+		}
+	} else {
+		res, err := http.Get(url)
+
+		if err != nil {
+			return err
+		}
+
+		if res.StatusCode == http.StatusNotFound {
+			return fmt.Errorf("unknown pokemon")
+		}
+
+		defer func() {
+			err = res.Body.Close()
+
+			if err != nil {
+				fmt.Println(err)
+			}
+		}()
+
+		resBody, err := io.ReadAll(res.Body)
+
+		if err != nil {
+			return err
+		}
+
+		err = json.Unmarshal(resBody, &decodedBody)
+		cfg.Cache.Add(url, resBody)
+	}
+
+	isCaptured := randomWithBias(float64(decodedBody.BaseExperience))
+
+	fmt.Printf("Throwing a Pokeball at %s...\n", cfg.PokemonToCatchParam)
+
+	ticker := time.NewTicker(1 * time.Second)
+	var ticked int
+
+	if isCaptured == 0 {
+		ticks := rand.Intn(3) + 1
+
+		ticked = 1
+
+		for range ticker.C {
+			fmt.Printf("%d...\n", ticked)
+			if ticked >= ticks {
+				ticker.Stop()
+				break
+			}
+			ticked++
+		}
+		fmt.Printf("%s escaped!\n", cfg.PokemonToCatchParam)
+	} else {
+		ticked = 1
+
+		for range ticker.C {
+			fmt.Printf("%d...\n", ticked)
+			if ticked >= 3 {
+				ticker.Stop()
+				break
+			}
+			ticked++
+		}
+
+		fmt.Println("Gotcha!")
+		cfg.Pokemons[cfg.PokemonToCatchParam] = decodedBody
+	}
+
+	return nil
+}
+
+func randomWithBias(baseExp float64) int {
+	bias := 1 / (1 + math.Exp(-0.01*(baseExp-100)))
+
+	if rand.Float64() < bias {
+		return 0
+	}
+
+	return 1
+}
+
 func commandExit(cfg *Config) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
@@ -259,6 +373,11 @@ func GetCommands() map[string]CliCommand {
 		Callback:    getPokemonsInLocationArea,
 	}
 
+	commands["catch"] = CliCommand{
+		Name:        "catch",
+		Description: "Catches a pokemon",
+		Callback:    catchPokemon,
+	}
 	return commands
 }
 

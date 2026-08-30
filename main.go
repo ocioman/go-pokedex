@@ -15,6 +15,8 @@ func main() {
 		LocationAreasUrlNext:   "https://pokeapi.co/api/v2/location-area/",
 		Cache:                  cache.NewCache(10 * time.Second),
 		PokemonAreaLocationUrl: "https://pokeapi.co/api/v2/location-area/",
+		Pokemons:               make(map[string]repl.Pokemon),
+		PokemonToCatchUrl:      "https://pokeapi.co/api/v2/pokemon/",
 	}
 
 	scann := bufio.NewScanner(os.Stdin)
@@ -30,6 +32,8 @@ func main() {
 		if len(args) > 0 {
 			if len(args) > 1 && args[0] == "explore" {
 				cfg.PokemonAreaLocationParam = args[1]
+			} else if len(args) > 1 && args[0] == "catch" {
+				cfg.PokemonToCatchParam = args[1]
 			}
 
 			command, ok := cfg.Commands[args[0]]
