@@ -3,6 +3,7 @@ package repl
 import (
 	"encoding/json"
 	"fmt"
+	"image/png"
 	"io"
 	"math"
 	"math/rand"
@@ -11,6 +12,9 @@ import (
 	"pokedexcli/cache"
 	"strings"
 	"time"
+
+	"github.com/disintegration/imaging"
+	"github.com/qeesung/image2ascii/convert"
 )
 
 type Config struct {
@@ -70,6 +74,10 @@ type TypeSlot struct {
 	Ptype PokemonType `json:"type"`
 }
 
+type Sprites struct {
+	FrontDefault string `json:"front_default"`
+}
+
 type Pokemon struct {
 	Id             int        `json:"id"`
 	Name           string     `json:"name"`
@@ -79,6 +87,8 @@ type Pokemon struct {
 	Order          int        `json:"order"`
 	Weight         int        `json:"weight"`
 	Types          []TypeSlot `json:"types"`
+	PSprites       Sprites    `json:"sprites"`
+	ASCIIArt       string
 }
 
 func getLocationAreas(cfg *Config) error {
@@ -318,6 +328,15 @@ func catchPokemon(cfg *Config) error {
 		}
 
 		fmt.Println("Gotcha!")
+
+		var err error
+
+		decodedBody.ASCIIArt, err = getASCIIart(decodedBody.PSprites.FrontDefault)
+
+		if err != nil {
+			return err
+		}
+
 		cfg.Pokemons[cfg.PokemonToCatchParam] = decodedBody
 	}
 
@@ -332,7 +351,7 @@ func inspectPokemon(cfg *Config) error {
 	}
 
 	if inspected, ok := cfg.Pokemons[cfg.InspectPokemonName]; ok {
-		fmt.Println("Name: ", inspected.Name)
+		fmt.Println("\nName: ", inspected.Name)
 		fmt.Println("Height: ", inspected.Height)
 		fmt.Println("Weight: ", inspected.Weight)
 
@@ -341,6 +360,8 @@ func inspectPokemon(cfg *Config) error {
 		for _, t := range inspected.Types {
 			fmt.Printf("\t-%s\n", t.Ptype.Name)
 		}
+
+		fmt.Print(inspected.ASCIIArt)
 	} else {
 		return fmt.Errorf("you haven't caught this pokemon yet")
 	}
@@ -350,16 +371,56 @@ func inspectPokemon(cfg *Config) error {
 	return nil
 }
 
+func getASCIIart(spriteUrl string) (string, error) {
+	res, err := http.Get(spriteUrl)
+
+	if err != nil {
+		return "", err
+	}
+
+	defer func() {
+		err = res.Body.Close()
+
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	spriteImg, err := png.Decode(res.Body)
+
+	spriteImg = imaging.Resize(spriteImg, 96, 72, imaging.Lanczos)
+
+	if err != nil {
+		return "", err
+	}
+
+	converter := convert.NewImageConverter()
+
+	convertOption := convert.Options{
+		FixedWidth:      96,
+		FixedHeight:     72,
+		FitScreen:       false,
+		StretchedScreen: true,
+		Colored:         true,
+		Reversed:        false,
+	}
+
+	spriteASCII := converter.Image2ASCIIString(spriteImg, &convertOption)
+	return spriteASCII, nil
+}
+
 func inspectPokedex(cfg *Config) error {
 	if len(cfg.Pokemons) == 0 {
 		return fmt.Errorf("your pokedex is empty")
 	}
 
-	fmt.Println("Your Pokedex: ")
+	fmt.Println("\nYour Pokedex: ")
 
 	for _, p := range cfg.Pokemons {
 		fmt.Printf("\t-%s\n", p.Name)
 	}
+
+	fmt.Printf("\n")
 
 	return nil
 }

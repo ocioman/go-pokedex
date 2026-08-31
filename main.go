@@ -6,7 +6,10 @@ import (
 	"os"
 	"pokedexcli/cache"
 	"pokedexcli/repl"
+	"strings"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 func main() {
@@ -18,6 +21,16 @@ func main() {
 		Pokemons:               make(map[string]repl.Pokemon),
 		PokemonToCatchUrl:      "https://pokeapi.co/api/v2/pokemon/",
 	}
+
+	color.Red(`
+▄▖ 
+▌ ▛▌
+▙▌▙▌`)
+
+	fmt.Println(`▄▖
+▌▌█▌▚▘
+▙▘▙▖▞▖
+`)
 
 	scann := bufio.NewScanner(os.Stdin)
 
@@ -31,14 +44,14 @@ func main() {
 
 		if len(args) > 0 {
 			if len(args) > 1 && args[0] == "explore" {
-				cfg.PokemonAreaLocationParam = args[1]
+				cfg.PokemonAreaLocationParam = strings.TrimSpace(args[1])
 			} else if len(args) > 1 && args[0] == "catch" {
-				cfg.PokemonToCatchParam = args[1]
+				cfg.PokemonToCatchParam = strings.TrimSpace(args[1])
 			} else if len(args) > 1 && args[0] == "inspect" {
-				cfg.InspectPokemonName = args[1]
+				cfg.InspectPokemonName = strings.TrimSpace(args[1])
 			}
 
-			command, ok := cfg.Commands[args[0]]
+			command, ok := cfg.Commands[strings.TrimSpace(args[0])]
 
 			if !ok {
 				fmt.Println("unknown command")
