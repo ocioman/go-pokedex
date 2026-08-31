@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/disintegration/imaging"
+	"github.com/fatih/color"
 	"github.com/qeesung/image2ascii/convert"
 )
 
@@ -130,9 +131,11 @@ func getLocationAreas(cfg *Config) error {
 		cfg.Cache.Add(cfg.LocationAreasUrlNext, resBody)
 	}
 
+	fmt.Printf("\n")
 	for _, l := range decodedRes.Results {
 		fmt.Println(l.Name)
 	}
+	fmt.Printf("\n")
 
 	cfg.LocationAreasUrlPrev = decodedRes.Previous
 	cfg.LocationAreasUrlNext = decodedRes.Next
@@ -142,7 +145,7 @@ func getLocationAreas(cfg *Config) error {
 
 func getPreviousLocationAreas(cfg *Config) error {
 	if len(cfg.LocationAreasUrlPrev) == 0 {
-		return fmt.Errorf("no previous area locations")
+		return fmt.Errorf("\nno previous area locations\n")
 	}
 
 	var decodedRes Locations
@@ -183,9 +186,11 @@ func getPreviousLocationAreas(cfg *Config) error {
 		cfg.Cache.Add(cfg.LocationAreasUrlPrev, resBody)
 	}
 
+	fmt.Printf("\n")
 	for _, l := range decodedRes.Results {
 		fmt.Println(l.Name)
 	}
+	fmt.Printf("\n")
 
 	cfg.LocationAreasUrlPrev = decodedRes.Previous
 	cfg.LocationAreasUrlNext = decodedRes.Next
@@ -195,7 +200,7 @@ func getPreviousLocationAreas(cfg *Config) error {
 
 func getPokemonsInLocationArea(cfg *Config) error {
 	if cfg.PokemonAreaLocationParam == "" {
-		return fmt.Errorf("no area specified")
+		return fmt.Errorf("\nno area specified\n")
 	}
 	var decodedData LocationArea
 
@@ -234,12 +239,14 @@ func getPokemonsInLocationArea(cfg *Config) error {
 	}
 
 	if len(decodedData.PokemonEncounters) == 0 {
-		return fmt.Errorf("no results in the area %s", cfg.PokemonAreaLocationParam)
+		return fmt.Errorf("\nno results in the area %s\n", cfg.PokemonAreaLocationParam)
 	}
 
+	fmt.Printf("\n")
 	for _, p := range decodedData.PokemonEncounters {
 		fmt.Println(p.Poke.Name)
 	}
+	fmt.Printf("\n")
 
 	cfg.PokemonAreaLocationParam = ""
 
@@ -250,11 +257,11 @@ func catchPokemon(cfg *Config) error {
 	var decodedBody Pokemon
 
 	if cfg.PokemonToCatchParam == "" {
-		return fmt.Errorf("no pokemon provided")
+		return fmt.Errorf("\nno pokemon provided\n")
 	}
 
 	if _, ok := cfg.Pokemons[cfg.PokemonToCatchParam]; ok {
-		return fmt.Errorf("you already have this pokemon")
+		return fmt.Errorf("\nyou already have this pokemon\n")
 	}
 
 	url := cfg.PokemonToCatchUrl + cfg.PokemonToCatchParam + "/"
@@ -281,7 +288,7 @@ func catchPokemon(cfg *Config) error {
 		}()
 
 		if res.StatusCode == http.StatusNotFound {
-			return fmt.Errorf("unknown pokemon")
+			return fmt.Errorf("\nunknown pokemon\n")
 		}
 
 		resBody, err := io.ReadAll(res.Body)
@@ -296,7 +303,7 @@ func catchPokemon(cfg *Config) error {
 
 	isCaptured := randomWithBias(float64(decodedBody.BaseExperience))
 
-	fmt.Printf("Throwing a Pokeball at %s...\n", cfg.PokemonToCatchParam)
+	fmt.Printf("\nThrowing a Pokeball at %s...\n", cfg.PokemonToCatchParam)
 
 	ticker := time.NewTicker(1 * time.Second)
 	var ticked int
@@ -314,7 +321,9 @@ func catchPokemon(cfg *Config) error {
 			}
 			ticked++
 		}
-		fmt.Printf("%s escaped!\n", cfg.PokemonToCatchParam)
+
+		color.Red(fmt.Sprintf("%s escaped!\n\n", cfg.PokemonToCatchParam))
+
 	} else {
 		ticked = 1
 
@@ -327,7 +336,7 @@ func catchPokemon(cfg *Config) error {
 			ticked++
 		}
 
-		fmt.Println("Gotcha!")
+		color.Green("Gotcha!\n\n")
 
 		var err error
 
@@ -347,23 +356,23 @@ func catchPokemon(cfg *Config) error {
 
 func inspectPokemon(cfg *Config) error {
 	if cfg.InspectPokemonName == "" {
-		return fmt.Errorf("no pokemon provided")
+		return fmt.Errorf("\nno pokemon provided\n")
 	}
 
 	if inspected, ok := cfg.Pokemons[cfg.InspectPokemonName]; ok {
-		fmt.Println("\nName: ", inspected.Name)
-		fmt.Println("Height: ", inspected.Height)
-		fmt.Println("Weight: ", inspected.Weight)
+		fmt.Print(inspected.ASCIIArt)
+		fmt.Println("Name: ", inspected.Name)
+		fmt.Println("Height: ", inspected.Height, "dm")
+		fmt.Println("Weight: ", inspected.Weight, "hg")
 
 		fmt.Println("Types: ")
 
 		for _, t := range inspected.Types {
 			fmt.Printf("\t-%s\n", t.Ptype.Name)
 		}
-
-		fmt.Print(inspected.ASCIIArt)
+		fmt.Print("\n")
 	} else {
-		return fmt.Errorf("you haven't caught this pokemon yet")
+		return fmt.Errorf("\nyou haven't caught this pokemon yet\n")
 	}
 
 	cfg.InspectPokemonName = ""
@@ -411,7 +420,7 @@ func getASCIIart(spriteUrl string) (string, error) {
 
 func inspectPokedex(cfg *Config) error {
 	if len(cfg.Pokemons) == 0 {
-		return fmt.Errorf("your pokedex is empty")
+		return fmt.Errorf("\nyour pokedex is empty\n")
 	}
 
 	fmt.Println("\nYour Pokedex: ")
@@ -442,9 +451,10 @@ func commandExit(cfg *Config) error {
 }
 
 func commandHelp(cfg *Config) error {
+	fmt.Printf("\n")
 	fmt.Printf("\nWelcome to the Pokedex!\nUsage:\n\n")
-	for k, v := range cfg.Commands {
-		fmt.Printf("%s: %s\n", k, v.Description)
+	for _, v := range cfg.Commands {
+		fmt.Printf("%s: %s\n", v.Name, v.Description)
 	}
 
 	fmt.Printf("\n")
@@ -480,19 +490,19 @@ func GetCommands() map[string]CliCommand {
 	}
 
 	commands["explore"] = CliCommand{
-		Name:        "explore",
+		Name:        "explore <location_area>",
 		Description: "Prints all the possible pokemon encounters in the location area",
 		Callback:    getPokemonsInLocationArea,
 	}
 
 	commands["catch"] = CliCommand{
-		Name:        "catch",
+		Name:        "catch <pokemon>",
 		Description: "Catches a pokemon",
 		Callback:    catchPokemon,
 	}
 
 	commands["inspect"] = CliCommand{
-		Name:        "inspect",
+		Name:        "inspect <pokemon>",
 		Description: "Inspects a Pokemon in your Pokedex based on its name",
 		Callback:    inspectPokemon,
 	}

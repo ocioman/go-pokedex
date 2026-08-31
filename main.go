@@ -54,7 +54,7 @@ func main() {
 			command, ok := cfg.Commands[strings.TrimSpace(args[0])]
 
 			if !ok {
-				fmt.Println("unknown command")
+				fmt.Println("\nunknown command\n")
 				continue
 			}
 
