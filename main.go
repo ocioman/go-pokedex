@@ -20,7 +20,48 @@ func main() {
 		PokemonAreaLocationUrl: "https://pokeapi.co/api/v2/location-area/",
 		Pokemons:               make(map[string]repl.Pokemon),
 		PokemonToCatchUrl:      "https://pokeapi.co/api/v2/pokemon/",
+		PokemonsBuffer:         make([]repl.Pokemon, 0),
+		PokemonsChannel:        make(chan any),
 	}
+
+	defer func() {
+		err := cfg.Commands["commandExit"].Callback(&cfg)
+
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	var err error
+
+	cfg.SaveFile, err = os.OpenFile("save.json", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	//rimuovo ] e metto se il file ha gia salvataggi
+
+	stat, err := cfg.SaveFile.Stat()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	if stat.Size() > 0 {
+		err = cfg.SaveFile.Truncate(stat.Size() - 1)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+
+	scann := bufio.NewScanner(os.Stdin)
+
+	go func() {
+		err = repl.WritePokemonsBufferLoop(&cfg)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
 
 	color.Red(`
 ▄▖ 
@@ -31,8 +72,6 @@ func main() {
 ▌▌█▌▚▘
 ▙▘▙▖▞▖
 `)
-
-	scann := bufio.NewScanner(os.Stdin)
 
 	for {
 		fmt.Printf("Pokedex > ")
@@ -58,7 +97,7 @@ func main() {
 				continue
 			}
 
-			err := command.Callback(&cfg)
+			err = command.Callback(&cfg)
 			if err != nil {
 				fmt.Println(err)
 			}
