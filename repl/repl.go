@@ -1,6 +1,7 @@
 package repl
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"image/png"
@@ -89,7 +90,18 @@ type Pokemon struct {
 	Weight         int        `json:"weight"`
 	Types          []TypeSlot `json:"types"`
 	PSprites       Sprites    `json:"sprites"`
-	ASCIIArt       string
+	Stats          []StatSlot `json:"stats"`
+	aSCIIArt       string
+}
+
+type Stat struct {
+	Name string `json:"name"`
+}
+
+type StatSlot struct {
+	BaseStat int  `json:"base_stat"`
+	Effort   int  `json:"effort"`
+	PStat    Stat `json:"stat"`
 }
 
 func getLocationAreas(cfg *Config) error {
@@ -340,7 +352,7 @@ func catchPokemon(cfg *Config) error {
 
 		var err error
 
-		decodedBody.ASCIIArt, err = getASCIIart(decodedBody.PSprites.FrontDefault)
+		decodedBody.aSCIIArt, err = getASCIIart(decodedBody.PSprites.FrontDefault)
 
 		if err != nil {
 			return err
@@ -360,10 +372,19 @@ func inspectPokemon(cfg *Config) error {
 	}
 
 	if inspected, ok := cfg.Pokemons[cfg.InspectPokemonName]; ok {
-		fmt.Print(inspected.ASCIIArt)
+		//se non c'e l'ascii art devo farla
+		fmt.Print(inspected.aSCIIArt)
 		fmt.Println("Name: ", inspected.Name)
 		fmt.Println("Height: ", inspected.Height, "dm")
 		fmt.Println("Weight: ", inspected.Weight, "hg")
+
+		fmt.Println("Stats: ")
+
+		for _, s := range inspected.Stats {
+			fmt.Printf("\t-%s:", s.PStat.Name)
+			fmt.Printf("\n\t\t-Base %s: %d", s.PStat.Name, s.BaseStat)
+			fmt.Printf("\n\t\t-Effort: %d\n", s.Effort)
+		}
 
 		fmt.Println("Types: ")
 
@@ -459,6 +480,59 @@ func commandHelp(cfg *Config) error {
 
 	fmt.Printf("\n")
 
+	return nil
+}
+
+func savePokedex(os io.Writer, cfg *Config) error {
+	bw := bufio.NewWriter(os)
+
+	defer func() {
+		err := bw.Flush()
+
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	_, err := bw.WriteRune('[')
+
+	if err != nil {
+		return err
+	}
+
+	var i int
+
+	for _, p := range cfg.Pokemons {
+		var encoded []byte
+
+		encoded, err = json.Marshal(p)
+
+		if err != nil {
+			return err
+		}
+
+		_, err = bw.Write(encoded)
+
+		if err != nil {
+			return err
+		}
+
+		if i < len(cfg.Pokemons)-1 {
+			_, err = bw.WriteRune(',')
+
+			if err != nil {
+				return err
+			}
+		}
+
+		i++
+	}
+
+	_, err = bw.WriteRune(']')
+
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
