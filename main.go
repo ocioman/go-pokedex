@@ -16,12 +16,32 @@ func main() {
 	cfg := repl.Config{
 		Commands:               repl.GetCommands(),
 		LocationAreasUrlNext:   "https://pokeapi.co/api/v2/location-area/",
-		Cache:                  cache.NewCache(10 * time.Second),
+		Cache:                  cache.NewCache(6 * time.Minute),
 		PokemonAreaLocationUrl: "https://pokeapi.co/api/v2/location-area/",
 		Pokemons:               make(map[string]repl.Pokemon),
 		PokemonToCatchUrl:      "https://pokeapi.co/api/v2/pokemon/",
 		PokemonsBuffer:         make([]repl.Pokemon, 0),
 		PokemonsChannel:        make(chan any),
+	}
+
+	if _, statErr := os.Stat("save.json"); statErr == nil {
+		save, err := os.Open("save.json")
+
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		err = repl.LoadSave(&cfg, save)
+
+		if err = save.Close(); err != nil {
+			fmt.Println(err)
+		}
+
+		if err != nil {
+			fmt.Println(err)
+		}
+	} else {
+		fmt.Println(statErr)
 	}
 
 	defer func() {
@@ -38,20 +58,6 @@ func main() {
 
 	if err != nil {
 		fmt.Println(err)
-	}
-
-	//rimuovo ] e metto se il file ha gia salvataggi
-
-	stat, err := cfg.SaveFile.Stat()
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	if stat.Size() > 0 {
-		err = cfg.SaveFile.Truncate(stat.Size() - 1)
-		if err != nil {
-			fmt.Println(err)
-		}
 	}
 
 	scann := bufio.NewScanner(os.Stdin)

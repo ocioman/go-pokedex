@@ -490,18 +490,6 @@ func commandExit(cfg *Config) error {
 		}
 	}
 
-	if stat, err := cfg.SaveFile.Stat(); err == nil {
-		if stat.Size() > 0 {
-			_, err = cfg.SaveFile.Write([]byte("]"))
-
-			if err != nil {
-				fmt.Println(err)
-			}
-		}
-	} else {
-		fmt.Println(err)
-	}
-
 	err := cfg.SaveFile.Close()
 
 	if err != nil {
@@ -549,6 +537,10 @@ func savePokedex(outStream *os.File, cfg *Config) error {
 			return err
 		}
 	} else {
+		err = cfg.SaveFile.Truncate(stat.Size() - 1)
+		if err != nil {
+			fmt.Println(err)
+		}
 		_, err = bw.WriteRune(',')
 
 		if err != nil {
@@ -584,6 +576,12 @@ func savePokedex(outStream *os.File, cfg *Config) error {
 		i++
 	}
 
+	_, err = bw.WriteRune(']')
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -591,7 +589,6 @@ func WritePokemonsBufferLoop(cfg *Config) error {
 	var bufSize int
 
 	for range cfg.PokemonsChannel {
-		fmt.Println(bufSize)
 		bufSize++
 		if bufSize == 5 {
 			err := savePokedex(cfg.SaveFile, cfg)
@@ -601,6 +598,24 @@ func WritePokemonsBufferLoop(cfg *Config) error {
 				return err
 			}
 		}
+	}
+
+	return nil
+}
+
+func LoadSave(cfg *Config, save *os.File) error {
+	decoder := json.NewDecoder(save)
+
+	var decodedPokemons []Pokemon
+
+	err := decoder.Decode(&decodedPokemons)
+
+	if err != nil {
+		return err
+	}
+
+	for _, p := range decodedPokemons {
+		cfg.Pokemons[p.Name] = p
 	}
 
 	return nil
