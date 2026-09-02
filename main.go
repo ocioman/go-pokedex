@@ -21,7 +21,7 @@ func main() {
 		Pokemons:               make(map[string]repl.Pokemon),
 		PokemonToCatchUrl:      "https://pokeapi.co/api/v2/pokemon/",
 		PokemonsBuffer:         make([]repl.Pokemon, 0),
-		PokemonsChannel:        make(chan any),
+		PokemonsChannel:        make(chan struct{}),
 	}
 
 	if _, statErr := os.Stat("save.json"); statErr == nil {

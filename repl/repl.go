@@ -31,7 +31,7 @@ type Config struct {
 	InspectPokemonName       string
 	Cache                    *cache.Cache
 	PokemonsBuffer           []Pokemon
-	PokemonsChannel          chan any
+	PokemonsChannel          chan struct{}
 	SaveFile                 *os.File
 }
 
@@ -361,10 +361,9 @@ func catchPokemon(cfg *Config) error {
 			return err
 		}
 
-		var empty any
 		cfg.Pokemons[cfg.PokemonToCatchParam] = decodedBody
 		cfg.PokemonsBuffer = append(cfg.PokemonsBuffer, decodedBody)
-		cfg.PokemonsChannel <- empty
+		cfg.PokemonsChannel <- struct{}{}
 	}
 
 	cfg.PokemonToCatchParam = ""
