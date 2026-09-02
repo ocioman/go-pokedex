@@ -12,6 +12,7 @@ import (
 	"os"
 	"pokedexcli/cache"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/disintegration/imaging"
@@ -33,6 +34,7 @@ type Config struct {
 	PokemonsBuffer           []Pokemon
 	PokemonsChannel          chan struct{}
 	SaveFile                 *os.File
+	Mu                       *sync.RWMutex
 }
 
 type CliCommand struct {
@@ -362,7 +364,11 @@ func catchPokemon(cfg *Config) error {
 		}
 
 		cfg.Pokemons[cfg.PokemonToCatchParam] = decodedBody
+
+		cfg.Mu.Lock()
 		cfg.PokemonsBuffer = append(cfg.PokemonsBuffer, decodedBody)
+		cfg.Mu.Unlock()
+
 		cfg.PokemonsChannel <- struct{}{}
 	}
 
@@ -549,6 +555,8 @@ func savePokedex(outStream *os.File, cfg *Config) error {
 
 	var i int
 
+	cfg.Mu.RLock()
+
 	for _, p := range cfg.PokemonsBuffer {
 		var encoded []byte
 
@@ -575,6 +583,8 @@ func savePokedex(outStream *os.File, cfg *Config) error {
 		i++
 	}
 
+	cfg.Mu.RUnlock()
+
 	_, err = bw.WriteRune(']')
 
 	if err != nil {
@@ -591,7 +601,11 @@ func WritePokemonsBufferLoop(cfg *Config) error {
 		bufSize++
 		if bufSize == 5 {
 			err := savePokedex(cfg.SaveFile, cfg)
+
+			cfg.Mu.Lock()
 			cfg.PokemonsBuffer = cfg.PokemonsBuffer[:0]
+			cfg.Mu.RUnlock()
+
 			bufSize = 0
 			if err != nil {
 				return err

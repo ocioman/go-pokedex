@@ -7,6 +7,7 @@ import (
 	"pokedexcli/cache"
 	"pokedexcli/repl"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
@@ -22,6 +23,7 @@ func main() {
 		PokemonToCatchUrl:      "https://pokeapi.co/api/v2/pokemon/",
 		PokemonsBuffer:         make([]repl.Pokemon, 0),
 		PokemonsChannel:        make(chan struct{}),
+		Mu:                     new(sync.RWMutex),
 	}
 
 	if _, statErr := os.Stat("save.json"); statErr == nil {
